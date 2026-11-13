@@ -1,0 +1,62 @@
+diff --git a/scripts/player/player.gd b/scripts/player/player.gd
+index af5c820..9a0378c 100755
+--- a/scripts/player/player.gd
++++ b/scripts/player/player.gd
+@@ -26,9 +26,7 @@ const RESPAWN_INVULN := 1.0
+ const FIRE_COOLDOWN := 0.45
+ const AIM_HOLD := 0.4            # столько после выстрела взгляд следует за прицелом
+ const MUZZLE_DIST := 10.0        # точка вылета впереди игрока (земные px)
+-const PICKUP_RANGE := 36.0       # земные px; радиус показа подсказки «E»
+-const PICKUP_HOST_MARGIN := 8.0  # хост берёт чуть дальше, чем показана подсказка (лаг позиции клиента)
+-const SPRINT_MIN_SPEED := 0.25   # доля max_speed: медленнее (упёрся в стену) бег не тратит выносливость
++const PICKUP_RANGE := 36.0       # земные px
+ const PICKUP_COOLDOWN := 0.15
+ const PAD_AIM_DEADZONE := 0.3
+ const INPUT_MAX_COMPONENT := 1000.0  # вектор ввода больше этого (в т. ч. 1e30, где length() даёт inf) считается мусором
+@@ -165,14 +163,10 @@ func _rebuild_visual() -> void:
+ 
+ 
+ func is_local() -> bool:
+-	if multiplayer.multiplayer_peer == null:
+-		return false  # вышли в меню: узел ещё жив до смены сцены
+ 	return peer_id == multiplayer.get_unique_id()
+ 
+ 
+ func _physics_process(delta: float) -> void:
+-	if multiplayer.multiplayer_peer == null:
+-		return
+ 	_pickup_cd -= delta
+ 	if is_local():
+ 		var move := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+@@ -262,8 +256,7 @@ func _simulate(delta: float) -> void:
+ 			_respawn()
+ 		return
+ 	var moving := input_vector.length() > 0.1
+-	var running := sprint_held and moving and not exhausted and stamina > 0.0 \
+-			and get_real_velocity().length() > max_speed * SPRINT_MIN_SPEED  # velocity у стены не обнуляется, реальная скорость — да
++	var running := sprint_held and moving and not exhausted and stamina > 0.0
+ 	if running:
+ 		stamina = maxf(stamina - SPRINT_COST * delta, 0.0)
+ 		_regen_delay = REGEN_DELAY
+@@ -354,10 +347,10 @@ func _submit_input(move: Vector2, sprint: bool, aim: Vector2, fire: bool) -> voi
+ 
+ 
+ ## Ближайший гриб в радиусе PICKUP_RANGE (земные px) или null. Работает и на клиенте (подсказка «E»).
+-func nearest_pickup(reach := PICKUP_RANGE) -> Mushroom:
++func nearest_pickup() -> Mushroom:
+ 	var g := ground_position()
+ 	var best: Mushroom = null
+-	var best_d := reach
++	var best_d := PICKUP_RANGE
+ 	for node in get_tree().get_nodes_in_group(&"mushrooms"):
+ 		var m := node as Mushroom
+ 		if m == null or m.taken or m.is_queued_for_deletion():
+@@ -381,7 +374,7 @@ func _host_pickup() -> void:
+ 	if dead or _pickup_cd > 0.0:
+ 		return
+ 	_pickup_cd = PICKUP_COOLDOWN
+-	var m := nearest_pickup(PICKUP_RANGE + PICKUP_HOST_MARGIN)
++	var m := nearest_pickup()
+ 	if m == null:
+ 		return
+ 	if inventory.free_space(m.kind) < 1:
